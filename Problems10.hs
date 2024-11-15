@@ -215,14 +215,12 @@ smallStep (Plus e1 e2, acc)
   | isValue e1 = fmap (\(e2', acc') -> (Plus e1 e2', acc')) (smallStep (e2, acc))
   | otherwise = fmap (\(e1', acc') -> (Plus e1' e2, acc')) (smallStep (e1, acc))
 
-
 -- Lambda calculus: Application reduces left-to-right
 smallStep (App (Lam x body) arg, acc)
   | isValue arg = Just (substitute x arg body, acc)
 smallStep (App func arg, acc)
   | isValue func = fmap (\(arg', acc') -> (App func arg', acc')) (smallStep (arg, acc))
   | otherwise = fmap (\(func', acc') -> (App func' arg, acc')) (smallStep (func, acc))
-
 
 -- Store evaluates its argument and updates the accumulator
 smallStep (Store e, acc)
@@ -237,11 +235,26 @@ smallStep (Throw e, acc)
   | isValue e = Just (Throw e, acc)
   | otherwise = fmap (\(e', acc') -> (Throw e', acc')) (smallStep (e, acc))
 
+-- Catch evaluates `m`; handles exceptions or passes values through
+smallStep (Catch m y n, acc)
+  | isValue m = Just (m, acc)
+  | isThrow m = let (Throw w) = m in Just (substitute y w n, acc)
+  | otherwise = fmap (\(m', acc') -> (Catch m' y n, acc')) (smallStep (m, acc))
 
--- Check if an expression is a `Throw`
-isThrow :: Expr -> Bool
-isThrow (Throw _) = True
-isThrow _         = False
+-- Propagate exceptions through Plus
+smallStep (Plus e1 e2, acc)
+  | isThrow e1 = Just (e1, acc)
+  | isThrow e2 = Just (e2, acc)
+
+-- Propagate exceptions through App
+smallStep (App func arg, acc)
+  | isThrow func = Just (func, acc)
+  | isThrow arg = Just (arg, acc)
+
+-- No rules apply: evaluation is complete
+smallStep _ = Nothing
+
+
 
 -- Extract integer value from a constant expression
 extractInt :: Expr -> Int
