@@ -216,6 +216,13 @@ smallStep (Plus e1 e2, acc)
   | otherwise = fmap (\(e1', acc') -> (Plus e1' e2, acc')) (smallStep (e1, acc))
 
 
+-- Lambda calculus: Application reduces left-to-right
+smallStep (App (Lam x body) arg, acc)
+  | isValue arg = Just (substitute x arg body, acc)
+smallStep (App func arg, acc)
+  | isValue func = fmap (\(arg', acc') -> (App func arg', acc')) (smallStep (arg, acc))
+  | otherwise = fmap (\(func', acc') -> (App func' arg, acc')) (smallStep (func, acc))
+
 
 
 
