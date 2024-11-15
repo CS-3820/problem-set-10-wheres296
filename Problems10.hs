@@ -206,24 +206,85 @@ bubble; this won't *just* be `Throw` and `Catch.
 
 
 smallStep :: (Expr, Expr) -> Maybe (Expr, Expr)
+-- Base case: A constant value doesn't reduce further
 smallStep (Const i, acc) = Nothing
-smallStep (Plus (Const i) (Const j), acc) = Just (Const (i + j), acc)
-smallStep (Plus (Const i) e2, acc) = 
-    fmap (\(e2', acc') -> (Plus (Const i) e2', acc')) (smallStep (e2, acc))
-smallStep (Plus e1 e2, acc) = 
-    fmap (\(e1', acc') -> (Plus e1' e2, acc')) (smallStep (e1, acc))
-smallStep (Store (Const i), _) = Just (Const i, Const i)
-smallStep (Store e, acc) = 
-    fmap (\(e', acc') -> (Store e', acc')) (smallStep (e, acc))
+
+-- Arithmetic: Plus evaluates its arguments left-to-right
+smallStep (Plus e1 e2, acc)
+  | isValue e1 && isValue e2 = Just (Const (extractInt e1 + extractInt e2), acc)
+  | isValue e1 = fmap (\(e2', acc') -> (Plus e1 e2', acc')) (smallStep (e2, acc))
+  | otherwise = fmap (\(e1', acc') -> (Plus e1' e2, acc')) (smallStep (e1, acc))
+
+-- Lambda calculus: Application reduces left-to-right
+smallStep (App (Lam x body) arg, acc)
+  | isValue arg = Just (substitute x arg body, acc)
+smallStep (App func arg, acc)
+  | isValue func = fmap (\(arg', acc') -> (App func arg', acc')) (smallStep (arg, acc))
+  | otherwise = fmap (\(func', acc') -> (App func' arg, acc')) (smallStep (func, acc))
+
+-- Store evaluates its argument and updates the accumulator
+smallStep (Store e, acc)
+  | isValue e = Just (Const (extractInt e), Const (extractInt e))
+  | otherwise = fmap (\(e', acc') -> (Store e', acc')) (smallStep (e, acc))
+
+-- Recall retrieves the accumulator
 smallStep (Recall, acc) = Just (acc, acc)
-smallStep (Throw v, acc) | isValue v = Just (Throw v, acc)
-smallStep (Throw e, acc) = 
-    fmap (\(e', acc') -> (Throw e', acc')) (smallStep (e, acc))
-smallStep (Catch (Throw v) y n, acc) | isValue v = Just (subst y v n, acc)
-smallStep (Catch v y n, acc) | isValue v = Just (v, acc)
-smallStep (Catch e y n, acc) = 
-    fmap (\(e', acc') -> (Catch e' y n, acc')) (smallStep (e, acc))
-smallStep (_, _) = Nothing
+
+-- Throw bubbles exceptions when the argument is a value
+smallStep (Throw e, acc)
+  | isValue e = Just (Throw e, acc)
+  | otherwise = fmap (\(e', acc') -> (Throw e', acc')) (smallStep (e, acc))
+
+-- Catch evaluates `m`; handles exceptions or passes values through
+smallStep (Catch m y n, acc)
+  | isValue m = Just (m, acc)
+  | isThrow m = let (Throw w) = m in Just (substitute y w n, acc)
+  | otherwise = fmap (\(m', acc') -> (Catch m' y n, acc')) (smallStep (m, acc))
+
+-- Propagate exceptions through Plus
+smallStep (Plus e1 e2, acc)
+  | isThrow e1 = Just (e1, acc)
+  | isThrow e2 = Just (e2, acc)
+
+-- Propagate exceptions through App
+smallStep (App func arg, acc)
+  | isThrow func = Just (func, acc)
+  | isThrow arg = Just (arg, acc)
+
+-- No rules apply: evaluation is complete
+smallStep _ = Nothing
+
+
+-- Check if an expression is a value
+isValue :: Expr -> Bool
+isValue (Const _) = True
+isValue (Lam _ _) = True
+isValue _         = False
+
+-- Check if an expression is a `Throw`
+isThrow :: Expr -> Bool
+isThrow (Throw _) = True
+isThrow _         = False
+
+-- Extract integer value from a constant expression
+extractInt :: Expr -> Int
+extractInt (Const i) = i
+extractInt _ = error "Not a constant value"
+
+-- Substitute a variable with an expression in another expression
+substitute :: String -> Expr -> Expr -> Expr
+substitute var value expr = case expr of
+  Var x | x == var -> value
+  Lam x body | x /= var -> Lam x (substitute var value body)
+  App e1 e2 -> App (substitute var value e1) (substitute var value e2)
+  Plus e1 e2 -> Plus (substitute var value e1) (substitute var value e2)
+  Catch e1 y e2 -> Catch (substitute var value e1) y (if y == var then e2 else substitute var value e2)
+  Store e -> Store (substitute var value e)
+  Recall -> Recall
+  Throw e -> Throw (substitute var value e)
+  Const i -> Const i
+  _ -> expr
+
 
 
 steps :: (Expr, Expr) -> [(Expr, Expr)]
