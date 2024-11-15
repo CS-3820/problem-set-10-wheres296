@@ -205,7 +205,26 @@ bubble; this won't *just* be `Throw` and `Catch.
 -------------------------------------------------------------------------------}
 
 smallStep :: (Expr, Expr) -> Maybe (Expr, Expr)
-smallStep = undefined
+smallStep :: (Expr, Expr) -> Maybe (Expr, Expr)
+smallStep (Const i, acc) = Nothing
+smallStep (Plus (Const i) (Const j), acc) = Just (Const (i + j), acc)
+smallStep (Plus (Const i) e2, acc) = 
+    fmap (\(e2', acc') -> (Plus (Const i) e2', acc')) (smallStep (e2, acc))
+smallStep (Plus e1 e2, acc) = 
+    fmap (\(e1', acc') -> (Plus e1' e2, acc')) (smallStep (e1, acc))
+smallStep (Store (Const i), _) = Just (Const i, Const i)
+smallStep (Store e, acc) = 
+    fmap (\(e', acc') -> (Store e', acc')) (smallStep (e, acc))
+smallStep (Recall, acc) = Just (acc, acc)
+smallStep (Throw v, acc) | isValue v = Just (Throw v, acc)
+smallStep (Throw e, acc) = 
+    fmap (\(e', acc') -> (Throw e', acc')) (smallStep (e, acc))
+smallStep (Catch (Throw v) y n, acc) | isValue v = Just (subst y v n, acc)
+smallStep (Catch v y n, acc) | isValue v = Just (v, acc)
+smallStep (Catch e y n, acc) = 
+    fmap (\(e', acc') -> (Catch e' y n, acc')) (smallStep (e, acc))
+smallStep (_, _) = Nothing
+
 
 steps :: (Expr, Expr) -> [(Expr, Expr)]
 steps s = case smallStep s of
