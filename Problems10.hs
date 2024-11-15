@@ -204,7 +204,7 @@ bubble; this won't *just* be `Throw` and `Catch.
 
 -------------------------------------------------------------------------------}
 
-smallStep :: (Expr, Expr) -> Maybe (Expr, Expr)
+
 smallStep :: (Expr, Expr) -> Maybe (Expr, Expr)
 smallStep (Const i, acc) = Nothing
 smallStep (Plus (Const i) (Const j), acc) = Just (Const (i + j), acc)
