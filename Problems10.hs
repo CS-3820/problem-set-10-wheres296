@@ -228,7 +228,15 @@ smallStep (App func arg, acc)
 smallStep (Store e, acc)
   | isValue e = Just (Const (extractInt e), Const (extractInt e))
   | otherwise = fmap (\(e', acc') -> (Store e', acc')) (smallStep (e, acc))
-  
+
+-- Recall retrieves the accumulator
+smallStep (Recall, acc) = Just (acc, acc)
+
+-- Throw bubbles exceptions when the argument is a value
+smallStep (Throw e, acc)
+  | isValue e = Just (Throw e, acc)
+  | otherwise = fmap (\(e', acc') -> (Throw e', acc')) (smallStep (e, acc))
+
 
 -- Check if an expression is a `Throw`
 isThrow :: Expr -> Bool
