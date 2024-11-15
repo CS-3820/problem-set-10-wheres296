@@ -255,11 +255,6 @@ smallStep (App func arg, acc)
 smallStep _ = Nothing
 
 
--- Check if an expression is a value
-isValue :: Expr -> Bool
-isValue (Const _) = True
-isValue (Lam _ _) = True
-isValue _         = False
 
 -- Check if an expression is a `Throw`
 isThrow :: Expr -> Bool
