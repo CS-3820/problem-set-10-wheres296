@@ -257,6 +257,30 @@ smallStep _ = Nothing
 
 
 
+-- Check if an expression is a `Throw`
+isThrow :: Expr -> Bool
+isThrow (Throw _) = True
+isThrow _         = False
+
+-- Extract integer value from a constant expression
+extractInt :: Expr -> Int
+extractInt (Const i) = i
+extractInt _ = error "Not a constant value"
+
+-- Substitute a variable with an expression in another expression
+substitute :: String -> Expr -> Expr -> Expr
+substitute var value expr = case expr of
+  Var x | x == var -> value
+  Lam x body | x /= var -> Lam x (substitute var value body)
+  App e1 e2 -> App (substitute var value e1) (substitute var value e2)
+  Plus e1 e2 -> Plus (substitute var value e1) (substitute var value e2)
+  Catch e1 y e2 -> Catch (substitute var value e1) y (if y == var then e2 else substitute var value e2)
+  Store e -> Store (substitute var value e)
+  Recall -> Recall
+  Throw e -> Throw (substitute var value e)
+  Const i -> Const i
+  _ -> expr
+
 
 
 
